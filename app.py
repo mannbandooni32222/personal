@@ -90,6 +90,19 @@ if extract_btn:
     st.success(f"Scraped {len(df)} websites")
     st.dataframe(df, use_container_width=True, height=600)
 
+        # ----------------------------
+    # COPY-PASTE FRIENDLY TABLE
+    # ----------------------------
+    st.markdown("### 📋 Copy table (Paste into Google Sheets / Excel)")
+
+    copy_text = df.to_csv(index=False)
+    st.text_area(
+        "Select all → Copy → Paste",
+        copy_text,
+        height=200
+    )
+
+
     csv = df.to_csv(index=False)
     st.download_button(
         "⬇ Download CSV",
