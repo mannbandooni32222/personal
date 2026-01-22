@@ -3,6 +3,7 @@ import requests
 from bs4 import BeautifulSoup
 import re
 import pandas as pd
+import streamlit.components.v1 as components
 
 # ----------------------------
 # PAGE CONFIG
@@ -40,7 +41,7 @@ def scrape_website(url):
 
         soup = BeautifulSoup(html, "html.parser")
 
-        # 1 Email only
+        # Extract first email
         emails = re.findall(
             r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}",
             html
@@ -60,7 +61,7 @@ def scrape_website(url):
             "LinkedIn": linkedin["href"] if linkedin else "Not found"
         }
 
-    except Exception as e:
+    except Exception:
         return {
             "Website": url,
             "Email": "Error",
@@ -88,21 +89,43 @@ if extract_btn:
     df = pd.DataFrame(results)
 
     st.success(f"Scraped {len(df)} websites")
-    st.dataframe(df, use_container_width=True, height=600)
+    st.dataframe(df, use_container_width=True, height=500)
 
-        # ----------------------------
-    # COPY-PASTE FRIENDLY TABLE
     # ----------------------------
-    st.markdown("### 📋 Copy table (Paste into Google Sheets / Excel)")
+    # COPY & PASTE (GOOGLE SHEETS)
+    # ----------------------------
+    st.markdown("### 📋 Copy & Paste into Google Sheets")
+    st.info("Click inside the box → Ctrl+A → Ctrl+C → Paste into Google Sheets")
 
-    copy_text = df.to_csv(index=False)
+    tsv_text = df.to_csv(index=False, sep="\t")
+
     st.text_area(
-        "Select all → Copy → Paste",
-        copy_text,
-        height=200
+        "TSV format (best for Google Sheets)",
+        tsv_text,
+        height=250
     )
 
+    # ----------------------------
+    # ONE-CLICK COPY BUTTON
+    # ----------------------------
+    st.markdown("### 📋 One-Click Copy")
 
+    components.html(
+        f"""
+        <textarea id="copyText" style="width:100%;height:200px;">
+{tsv_text}
+        </textarea>
+        <br>
+        <button onclick="navigator.clipboard.writeText(document.getElementById('copyText').value)">
+            📋 Copy to Clipboard
+        </button>
+        """,
+        height=300
+    )
+
+    # ----------------------------
+    # DOWNLOAD CSV
+    # ----------------------------
     csv = df.to_csv(index=False)
     st.download_button(
         "⬇ Download CSV",
