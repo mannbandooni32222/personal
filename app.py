@@ -3,15 +3,12 @@ import requests
 from bs4 import BeautifulSoup
 import re
 import pandas as pd
-import streamlit.components.v1 as components
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # ----------------------------
 # PAGE CONFIG
 # ----------------------------
-st.set_page_config(
-    page_title="Website Scraper",
-    layout="wide"
-)
+st.set_page_config(page_title="Website Scraper", layout="wide")
 
 st.title("🌐 Website Email & Social Media Scraper")
 st.write("Extract emails and social links from public websites.")
@@ -30,25 +27,23 @@ extract_btn = st.button("🚀 Start Scraping")
 # ----------------------------
 # SCRAPER FUNCTION
 # ----------------------------
-def scrape_website(url):
+def scrape_website(url, session):
     try:
         if not url.startswith("http"):
             url = "https://" + url
 
-        headers = {"User-Agent": "Mozilla/5.0"}
-        response = requests.get(url, timeout=10, headers=headers)
+        response = session.get(url, timeout=8)
         html = response.text
 
         soup = BeautifulSoup(html, "html.parser")
 
-        # Extract first email
         emails = re.findall(
             r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}",
             html
         )
+
         email = emails[0] if emails else "Not found"
 
-        # Social links
         insta = soup.find("a", href=re.compile("instagram.com"))
         fb = soup.find("a", href=re.compile("facebook.com"))
         linkedin = soup.find("a", href=re.compile("linkedin.com"))
@@ -74,6 +69,7 @@ def scrape_website(url):
 # RUN SCRAPER
 # ----------------------------
 if extract_btn:
+
     urls = [u.strip() for u in urls_input.split("\n") if u.strip()]
 
     if not urls:
@@ -82,51 +78,27 @@ if extract_btn:
 
     results = []
 
-    with st.spinner("Scraping websites..."):
-        for url in urls:
-            results.append(scrape_website(url))
+    progress = st.progress(0)
+
+    session = requests.Session()
+    session.headers.update({"User-Agent": "Mozilla/5.0"})
+
+    with ThreadPoolExecutor(max_workers=15) as executor:
+
+        futures = [executor.submit(scrape_website, url, session) for url in urls]
+
+        for i, future in enumerate(as_completed(futures)):
+            results.append(future.result())
+            progress.progress((i + 1) / len(urls))
 
     df = pd.DataFrame(results)
 
     st.success(f"Scraped {len(df)} websites")
-    st.dataframe(df, use_container_width=True, height=500)
 
-    # ----------------------------
-    # COPY & PASTE (GOOGLE SHEETS)
-    # ----------------------------
-    st.markdown("### 📋 Copy & Paste into Google Sheets")
-    st.info("Click inside the box → Ctrl+A → Ctrl+C → Paste into Google Sheets")
+    st.dataframe(df, use_container_width=True)
 
-    tsv_text = df.to_csv(index=False, sep="\t")
-
-    st.text_area(
-        "TSV format (best for Google Sheets)",
-        tsv_text,
-        height=250
-    )
-
-    # ----------------------------
-    # ONE-CLICK COPY BUTTON
-    # ----------------------------
-    st.markdown("### 📋 One-Click Copy")
-
-    components.html(
-        f"""
-        <textarea id="copyText" style="width:100%;height:200px;">
-{tsv_text}
-        </textarea>
-        <br>
-        <button onclick="navigator.clipboard.writeText(document.getElementById('copyText').value)">
-            📋 Copy to Clipboard
-        </button>
-        """,
-        height=300
-    )
-
-    # ----------------------------
-    # DOWNLOAD CSV
-    # ----------------------------
     csv = df.to_csv(index=False)
+
     st.download_button(
         "⬇ Download CSV",
         csv,
